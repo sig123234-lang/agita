@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>온에게 전화 — 스모크 테스트</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0a0e1a;
+      color: #e8e6e3;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #1d2230;
+    }
+    h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+    .sub { color: #8a8e9a; font-size: 12px; margin-top: 4px; line-height: 1.5; }
+    .sub code {
+      background: #131722; padding: 1px 6px; border-radius: 3px;
+      font-family: ui-monospace, "SF Mono", monospace; font-size: 11px;
+    }
+    iframe { flex: 1; width: 100%; border: 0; background: #0a0e1a; }
+    .note {
+      padding: 10px 20px;
+      background: #131722;
+      color: #8a8e9a;
+      font-size: 11px;
+      border-top: 1px solid #1d2230;
+    }
+    .reset {
+      margin-left: 8px;
+      color: #6f8aff;
+      cursor: pointer;
+      text-decoration: underline;
+      background: none; border: 0; padding: 0; font: inherit;
+    }
+    .empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: #ff7a7a; padding: 24px; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>온에게 전화 — 스모크 테스트</h1>
+    <div class="sub">
+      1) 터미널에서 <code>.venv/bin/python companion_call_bot.py</code> 실행 →
+      2) 아래에서 Join 클릭.
+      <button class="reset" id="resetBtn" type="button">룸 URL 다시 설정</button>
+    </div>
+  </header>
+
+  <iframe id="dailyFrame" allow="camera; microphone; autoplay; display-capture" src="about:blank"></iframe>
+
+  <div class="note">
+    실제 제품 UI는 Phase 1 후반에 Next.js로 별도 구현. 이건 파이프라인 first-light 확인용.
+  </div>
+
+  <script>
+    function getRoomUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const fromQuery = params.get('room');
+      if (fromQuery) {
+        localStorage.setItem('agita_room_url', fromQuery);
+        return fromQuery;
+      }
+      return localStorage.getItem('agita_room_url') || '';
+    }
+
+    function setRoomUrl() {
+      const current = localStorage.getItem('agita_room_url') || '';
+      const v = window.prompt('Daily 룸 URL을 입력하세요 (예: https://your-domain.daily.co/agita-test)', current);
+      if (v) {
+        localStorage.setItem('agita_room_url', v);
+        location.reload();
+      }
+    }
+
+    function withAudioOnlyParams(url) {
+      // 비디오는 기본 off (음성 통화). 오디오는 켜진 상태로 시작.
+      const sep = url.includes('?') ? '&' : '?';
+      return url + sep + 'startVideoOff=true&startAudioOff=false';
+    }
+
+    document.getElementById('resetBtn').addEventListener('click', setRoomUrl);
+
+    let room = getRoomUrl();
+    if (!room) room = window.prompt('Daily 룸 URL을 입력하세요 (예: https://your-domain.daily.co/agita-test)');
+
+    if (room) {
+      localStorage.setItem('agita_room_url', room);
+      document.getElementById('dailyFrame').src = withAudioOnlyParams(room);
+    } else {
+      const f = document.getElementById('dailyFrame');
+      f.style.display = 'none';
+      const div = document.createElement('div');
+      div.className = 'empty';
+      div.textContent = '룸 URL이 없어 진행할 수 없어요. 새로고침 후 다시 입력해주세요.';
+      f.parentNode.insertBefore(div, f);
+    }
+  </script>
+</body>
+</html>
