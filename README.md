@@ -1,100 +1,85 @@
-# agita — AI 통화 동반자 "온"
+# 온 (ON) — AI 동반자
 
-밤마다 사용자가 전화를 걸어 하루를 털어놓는 음성 통화 AI.
-통화는 자연스럽게 흐르고, 끝나면 대화록을 요약해 일기로 기록한다.
+매일 밤, 사용자가 하루를 털어놓는 AI 동반자.
+끝까지 듣고, 기억하고, 일기로 남겨준다.
 
-상세 설계: `companion_master_spec.md` (외부 문서)
+> 상세 설계: `companion_master_spec.md` (외부 문서)
+> 알파 빌드 브리프: 텍스트 우선, 음성·결제·070·카카오톡은 M2.
 
-## 아키텍처
+## 현재 단계: M1 텍스트 알파
+
+| # | 체크포인트 | 상태 |
+|---|---|---|
+| 1 | Next.js + 페르소나 + 로컬 채팅 | ✅ |
+| 2 | Supabase Auth + Postgres | ✅ |
+| 3 | 일기 생성 + 캘린더 뷰 | ⏳ |
+| 4 | 안전 레이어 (위기 탐지 + 자원 + 슬랙) | ⏳ |
+| 5 | 온보딩·연령 게이트·설정·삭제권·피드백 | ⏳ |
+| 6 | Vercel 배포 + 사용 캡 + 모니터링 | ⏳ |
+
+## 스택 (M1)
 
 ```
-통화 ─▶ VAD ─▶ STT(RTZR) ─▶ [감정신호] 주입 ─▶ Claude Sonnet ─▶ TTS(ElevenLabs) ─▶ 통화
-                                                          │
-                              (통화 종료) ────────────────┴─▶ 일기 생성(Claude) ─▶ DB
-                                                                     │
-              (주기적/통화 전) ◀── 장기 프로필 갱신 ◀── 누적 일기 ───┘
+Next.js 15 (Vercel)
+ ├─ UI:    app/page.tsx (RSC) → app/chat-client.tsx (interactive)
+ │         app/login/page.tsx (Google/Kakao OAuth + 매직 링크)
+ ├─ API:   app/api/chat/route.ts (Claude Sonnet 4.6 스트리밍 + 영속화)
+ ├─ Auth:  Supabase (lib/supabase/{server,client,middleware}.ts)
+ │         middleware.ts: 보호 라우트 자동 리디렉트
+ ├─ DB:    Supabase Postgres (companions, sessions, messages, diaries, profiles, ...)
+ │         RLS로 사용자 데이터 격리 (supabase/schema.sql)
+ └─ 프롬프트: lib/prompts.ts (companion_master_spec § 3)
 ```
-
-- 두뇌는 텍스트 Claude(상위 모델). 음성 realtime 모델 대신 STT/TTS를 분리해 페르소나·규칙 이행 확보.
-- 퀄리티 > 비용 (spec § 0). 통화도 Sonnet.
-- `[상태]`(AI 기분) · `[프로필]`(장기 기억) · `[지난 기록]` · `[다음 화제]`를 서버가 시스템 프롬프트에 주입.
 
 ## 셋업
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
+# 1) Supabase 프로젝트 만들고 스키마 적용 (supabase/README.md 참고)
+# 2) 환경변수 채우기
 cp .env.local.example .env.local
-# .env.local 에 키들 채우기
+#    ANTHROPIC_API_KEY
+#    NEXT_PUBLIC_SUPABASE_URL
+#    NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-python companion_call_bot.py
+npm install
+npm run dev
+# http://localhost:3000 → /login으로 자동 이동 → 가입 → 대화
 ```
 
-## 스모크 테스트 (first light)
+Supabase env가 없으면 데모 모드로 동작 (인증/영속화 없이 채팅만). 알파 개발 편의.
 
-파이프라인이 실제로 도는지 확인하는 최소 절차. 실제 제품 UI는 Phase 1 후반에 별도.
+## 디렉토리
 
-1. **Daily 룸 만들기**
-   - https://dashboard.daily.co/ 가입 → Rooms → Create Room
-   - 룸 URL을 `.env.local`의 `DAILY_ROOM_URL`에 넣기
-   - Developers → API Keys 에서 키 받아서 Meeting Token 발급 → `DAILY_TOKEN`
-2. **다른 키들 채우기** (`ANTHROPIC_API_KEY`, `RTZR_API_TOKEN`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`)
-3. **봇 실행** — 한 터미널에서:
-   ```bash
-   .venv/bin/python companion_call_bot.py
-   ```
-   봇이 룸에 들어가 사용자 입장을 기다림.
-4. **클라이언트 열기** — 다른 터미널에서 정적 서버 띄우고 브라우저로 접속:
-   ```bash
-   python -m http.server 8000
-   # 브라우저: http://localhost:8000/call.html
-   ```
-   처음 한 번 룸 URL 입력 → Join → 마이크 권한 → "온"이 인사하면 성공.
+```
+agita/
+├── app/
+│   ├── page.tsx              # RSC: auth check → ChatClient
+│   ├── chat-client.tsx       # 인터랙티브 채팅 (스트리밍·TTS·세션관리)
+│   ├── layout.tsx
+│   ├── globals.css
+│   ├── login/page.tsx        # 로그인 (Google + Kakao + 매직 링크)
+│   ├── auth/callback/route.ts # OAuth/매직 링크 콜백
+│   └── api/chat/route.ts     # Claude 스트리밍 + 영속화
+├── lib/
+│   ├── prompts.ts            # 페르소나 프롬프트 팩
+│   ├── db.ts                 # DB CRUD 헬퍼
+│   └── supabase/
+│       ├── env.ts
+│       ├── server.ts
+│       ├── client.ts
+│       └── middleware.ts
+├── middleware.ts             # 인증 미들웨어 (보호 라우트 → /login)
+├── supabase/
+│   ├── schema.sql            # 스키마 + RLS + 자동 트리거
+│   └── README.md             # 셋업 가이드
+└── m2_voice/                 # 🔒 M2 음성 프로토타입 (격리, 알파엔 미사용)
+```
 
-## 필요한 API
+## M2 (보류)
 
-| 용도 | 서비스 | URL |
-|------|--------|-----|
-| LLM (실시간 + 일기 + 프로필) | Anthropic Claude (Sonnet 4.6) | https://console.anthropic.com |
-| 한국어 STT | RTZR / VITO | https://developers.rtzr.ai/ |
-| TTS | ElevenLabs (eleven_flash_v2_5) | https://elevenlabs.io/ |
-| 통화 transport (MVP) | Daily.co (앱 내 VoIP) | https://dashboard.daily.co/ |
-
-## 로드맵
-
-### Phase 1 (MVP) — 지금 작업 중
-- 앱 내 VoIP **인바운드 통화만**
-- STT → Claude → TTS + 감정신호 주입 (`prosody.py`, numpy 기반 가벼운 라벨러)
-- SQLite 영속화 (`db.py`) — 일기/프로필/통화기록
-- 일기 자동 생성·열람
-- `[지난 기록]` 주입 (단기 기억)
-- 안전 가드레일 (위기 시 109 안내, `safety_flag`)
-- ⏳ 실제 제품 UI (Next.js + Daily SDK) — 스모크 테스트(`call.html`) 통과 후
-
-### Phase 1.5
-- 장기 프로필 갱신 (7일 주기)
-- AI `[상태]`(기분) 주입
-- "온" 전용 보이스 클로닝
-
-### Phase 2 (보류)
-- 실제 **070 1인 1번호** (유료 플랜, 통신사 SIP transport)
-- **카카오톡 채널 챗봇** (낮시간 텍스트)
-- **먼저 전화 걸기 / 가끔 거절** 행동 레이어 (프롬프트 § 3.4는 이미 보관)
-
-## 남은 작업 (TODO)
-
-- [ ] `RTZRSTTService` — 인증·메시지 포맷을 RTZR 문서 기준으로 검증
-- [ ] `ProsodyAnalyzer.feed()` — 실제 prosody 분석으로 교체
-- [ ] DB 연동 — `load_last_diary` / `save_diary` / `load_user_profile` / `save_user_profile` / `load_recent_diaries` (SQLite로 시작 권장)
-- [ ] ElevenLabs `voice` ID — "온" 전용 한국어 보이스 클로닝
-- [ ] Pipecat import 경로 — 설치 버전 검증
-- [ ] `on_first_participant_joined` 첫 인사 트리거 — system 메시지 방식 vs 빈 user marker 비교
-- [ ] 7일 주기 프로필 갱신 잡 (cron / scheduler)
-- [ ] 녹음 고지 — 앱 UI 동의 화면 + 첫 응답 한 줄 보조
-- [ ] 위기 알림 (`notify_operator_of_safety`) 채널 — 이메일/슬랙
-
-## 이전 코드
-
-이전 Next.js 텍스트 채팅 버전 ("같이 욕해주는 친구")은 `_legacy/` 폴더에 보존됨.
+- 음성 통화 (STT/TTS/Pipecat/Daily/감정신호)
+- "온" 전용 보이스 (성우 클로닝)
+- 결제/요금제 (토스페이먼츠/포트원)
+- 실제 070 1인 1번호
+- 카카오톡 채널 챗봇
+- 먼저 전화 걸기 / 가끔 거절 (행동 레이어)

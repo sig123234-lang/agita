@@ -1,4 +1,11 @@
-# Python
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Python (M2 voice prototype)
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -13,10 +20,7 @@ venv/
 # OS
 .DS_Store
 
-# legacy (이전 Next.js 코드)
-_legacy/
-
-# SQLite 로컬 DB
+# SQLite (M2 prototype 로컬 DB)
 *.db
 *.db-journal
 *.db-wal
