@@ -46,8 +46,10 @@ create table if not exists public.diaries (
 create index if not exists idx_diaries_user_date
   on public.diaries(user_id, date desc);
 
--- ─── profiles ──────────────────────────────────────────────────────────
-create table if not exists public.profiles (
+-- ─── user_profiles (장기 프로필, 7일 주기 갱신용) ────────────────────
+-- ⚠️ Supabase Auth 템플릿이 public.profiles를 미리 만들어둘 수 있어 충돌 회피
+--    위해 user_profiles로 이름 분리.
+create table if not exists public.user_profiles (
   user_id     uuid primary key references auth.users(id) on delete cascade,
   payload     jsonb not null,
   updated_at  timestamptz not null default now()
@@ -76,13 +78,13 @@ create table if not exists public.feedback (
 -- RLS — 본인 데이터만 접근 (Supabase SQL Editor 호환을 위해 명시적 풀어쓰기)
 -- ═════════════════════════════════════════════════════════════════════════
 
-alter table public.companions enable row level security;
-alter table public.sessions   enable row level security;
-alter table public.messages   enable row level security;
-alter table public.diaries    enable row level security;
-alter table public.profiles   enable row level security;
-alter table public.usage      enable row level security;
-alter table public.feedback   enable row level security;
+alter table public.companions    enable row level security;
+alter table public.sessions      enable row level security;
+alter table public.messages      enable row level security;
+alter table public.diaries       enable row level security;
+alter table public.user_profiles enable row level security;
+alter table public.usage         enable row level security;
+alter table public.feedback      enable row level security;
 
 -- companions
 drop policy if exists "own row select" on public.companions;
@@ -124,15 +126,15 @@ create policy "own row insert" on public.diaries for insert with check (auth.uid
 create policy "own row update" on public.diaries for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own row delete" on public.diaries for delete using (auth.uid() = user_id);
 
--- profiles
-drop policy if exists "own row select" on public.profiles;
-drop policy if exists "own row insert" on public.profiles;
-drop policy if exists "own row update" on public.profiles;
-drop policy if exists "own row delete" on public.profiles;
-create policy "own row select" on public.profiles for select using (auth.uid() = user_id);
-create policy "own row insert" on public.profiles for insert with check (auth.uid() = user_id);
-create policy "own row update" on public.profiles for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "own row delete" on public.profiles for delete using (auth.uid() = user_id);
+-- user_profiles
+drop policy if exists "own row select" on public.user_profiles;
+drop policy if exists "own row insert" on public.user_profiles;
+drop policy if exists "own row update" on public.user_profiles;
+drop policy if exists "own row delete" on public.user_profiles;
+create policy "own row select" on public.user_profiles for select using (auth.uid() = user_id);
+create policy "own row insert" on public.user_profiles for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.user_profiles for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.user_profiles for delete using (auth.uid() = user_id);
 
 -- usage
 drop policy if exists "own row select" on public.usage;
