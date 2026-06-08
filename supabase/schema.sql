@@ -1,12 +1,7 @@
 -- 온 (ON) — M1 Postgres 스키마 + RLS
--- spec § 5 데이터 모델을 텍스트 알파에 맞게 변형:
---   calls(통화) → sessions(대화 세션)
---   duration_sec → message_count
--- diaries·profiles는 payload(JSONB)로 유연하게 보관.
---
 -- Supabase SQL Editor에 통째로 붙여넣어 1회 실행. 멱등하게 작성.
 
--- ─── companions ─────────────────────────────────────────────────────────
+-- ─── companions ────────────────────────────────────────────────────────
 create table if not exists public.companions (
   user_id     uuid primary key references auth.users(id) on delete cascade,
   name        text not null default '온',
@@ -15,7 +10,7 @@ create table if not exists public.companions (
   updated_at  timestamptz not null default now()
 );
 
--- ─── sessions ───────────────────────────────────────────────────────────
+-- ─── sessions ──────────────────────────────────────────────────────────
 create table if not exists public.sessions (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null references auth.users(id) on delete cascade,
@@ -26,7 +21,7 @@ create table if not exists public.sessions (
 create index if not exists idx_sessions_user_started
   on public.sessions(user_id, started_at desc);
 
--- ─── messages ───────────────────────────────────────────────────────────
+-- ─── messages ──────────────────────────────────────────────────────────
 create table if not exists public.messages (
   id          bigserial primary key,
   session_id  uuid not null references public.sessions(id) on delete cascade,
@@ -38,7 +33,7 @@ create table if not exists public.messages (
 create index if not exists idx_messages_session_created
   on public.messages(session_id, created_at);
 
--- ─── diaries (CP3) ──────────────────────────────────────────────────────
+-- ─── diaries ───────────────────────────────────────────────────────────
 create table if not exists public.diaries (
   id            bigserial primary key,
   session_id    uuid references public.sessions(id) on delete set null,
@@ -51,14 +46,14 @@ create table if not exists public.diaries (
 create index if not exists idx_diaries_user_date
   on public.diaries(user_id, date desc);
 
--- ─── profiles (장기 프로필 — CP3 이후) ─────────────────────────────────
+-- ─── profiles ──────────────────────────────────────────────────────────
 create table if not exists public.profiles (
   user_id     uuid primary key references auth.users(id) on delete cascade,
   payload     jsonb not null,
   updated_at  timestamptz not null default now()
 );
 
--- ─── usage (CP6 사용량 캡) ──────────────────────────────────────────────
+-- ─── usage ─────────────────────────────────────────────────────────────
 create table if not exists public.usage (
   user_id        uuid not null references auth.users(id) on delete cascade,
   month          text not null,
@@ -67,7 +62,7 @@ create table if not exists public.usage (
   primary key (user_id, month)
 );
 
--- ─── feedback (CP5) ─────────────────────────────────────────────────────
+-- ─── feedback ──────────────────────────────────────────────────────────
 create table if not exists public.feedback (
   id          bigserial primary key,
   user_id     uuid not null references auth.users(id) on delete cascade,
@@ -77,10 +72,9 @@ create table if not exists public.feedback (
   created_at  timestamptz not null default now()
 );
 
-
--- ═══════════════════════════════════════════════════════════════════════
--- RLS — 모든 테이블은 *오직 본인 데이터만* 접근 가능
--- ═══════════════════════════════════════════════════════════════════════
+-- ═════════════════════════════════════════════════════════════════════════
+-- RLS — 본인 데이터만 접근 (Supabase SQL Editor 호환을 위해 명시적 풀어쓰기)
+-- ═════════════════════════════════════════════════════════════════════════
 
 alter table public.companions enable row level security;
 alter table public.sessions   enable row level security;
@@ -90,47 +84,92 @@ alter table public.profiles   enable row level security;
 alter table public.usage      enable row level security;
 alter table public.feedback   enable row level security;
 
--- 동일 패턴 — auth.uid()가 user_id면 OK
-do $$
-declare
-  t text;
-begin
-  for t in select unnest(array[
-    'companions','sessions','messages','diaries','profiles','usage','feedback'
-  ]) loop
-    execute format('drop policy if exists "own row select" on public.%I', t);
-    execute format('drop policy if exists "own row insert" on public.%I', t);
-    execute format('drop policy if exists "own row update" on public.%I', t);
-    execute format('drop policy if exists "own row delete" on public.%I', t);
+-- companions
+drop policy if exists "own row select" on public.companions;
+drop policy if exists "own row insert" on public.companions;
+drop policy if exists "own row update" on public.companions;
+drop policy if exists "own row delete" on public.companions;
+create policy "own row select" on public.companions for select using (auth.uid() = user_id);
+create policy "own row insert" on public.companions for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.companions for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.companions for delete using (auth.uid() = user_id);
 
-    execute format(
-      'create policy "own row select" on public.%I for select using (auth.uid() = user_id)', t);
-    execute format(
-      'create policy "own row insert" on public.%I for insert with check (auth.uid() = user_id)', t);
-    execute format(
-      'create policy "own row update" on public.%I for update using (auth.uid() = user_id) with check (auth.uid() = user_id)', t);
-    execute format(
-      'create policy "own row delete" on public.%I for delete using (auth.uid() = user_id)', t);
-  end loop;
-end $$;
+-- sessions
+drop policy if exists "own row select" on public.sessions;
+drop policy if exists "own row insert" on public.sessions;
+drop policy if exists "own row update" on public.sessions;
+drop policy if exists "own row delete" on public.sessions;
+create policy "own row select" on public.sessions for select using (auth.uid() = user_id);
+create policy "own row insert" on public.sessions for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.sessions for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.sessions for delete using (auth.uid() = user_id);
 
+-- messages
+drop policy if exists "own row select" on public.messages;
+drop policy if exists "own row insert" on public.messages;
+drop policy if exists "own row update" on public.messages;
+drop policy if exists "own row delete" on public.messages;
+create policy "own row select" on public.messages for select using (auth.uid() = user_id);
+create policy "own row insert" on public.messages for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.messages for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.messages for delete using (auth.uid() = user_id);
 
--- ═══════════════════════════════════════════════════════════════════════
--- 새 사용자 가입 시 자동으로 companions 행 생성 (기본값으로)
--- ═══════════════════════════════════════════════════════════════════════
+-- diaries
+drop policy if exists "own row select" on public.diaries;
+drop policy if exists "own row insert" on public.diaries;
+drop policy if exists "own row update" on public.diaries;
+drop policy if exists "own row delete" on public.diaries;
+create policy "own row select" on public.diaries for select using (auth.uid() = user_id);
+create policy "own row insert" on public.diaries for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.diaries for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.diaries for delete using (auth.uid() = user_id);
+
+-- profiles
+drop policy if exists "own row select" on public.profiles;
+drop policy if exists "own row insert" on public.profiles;
+drop policy if exists "own row update" on public.profiles;
+drop policy if exists "own row delete" on public.profiles;
+create policy "own row select" on public.profiles for select using (auth.uid() = user_id);
+create policy "own row insert" on public.profiles for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.profiles for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.profiles for delete using (auth.uid() = user_id);
+
+-- usage
+drop policy if exists "own row select" on public.usage;
+drop policy if exists "own row insert" on public.usage;
+drop policy if exists "own row update" on public.usage;
+drop policy if exists "own row delete" on public.usage;
+create policy "own row select" on public.usage for select using (auth.uid() = user_id);
+create policy "own row insert" on public.usage for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.usage for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.usage for delete using (auth.uid() = user_id);
+
+-- feedback
+drop policy if exists "own row select" on public.feedback;
+drop policy if exists "own row insert" on public.feedback;
+drop policy if exists "own row update" on public.feedback;
+drop policy if exists "own row delete" on public.feedback;
+create policy "own row select" on public.feedback for select using (auth.uid() = user_id);
+create policy "own row insert" on public.feedback for insert with check (auth.uid() = user_id);
+create policy "own row update" on public.feedback for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own row delete" on public.feedback for delete using (auth.uid() = user_id);
+
+-- ═════════════════════════════════════════════════════════════════════════
+-- 신규 사용자 가입 시 companions 행 자동 생성
+-- ═════════════════════════════════════════════════════════════════════════
 
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $func$
 begin
   insert into public.companions (user_id) values (new.id)
     on conflict (user_id) do nothing;
   return new;
 end;
-$$;
+$func$;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
