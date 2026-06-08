@@ -4,70 +4,80 @@
 끝까지 듣고, 기억하고, 일기로 남겨준다.
 
 > 상세 설계: `companion_master_spec.md` (외부 문서)
-> 알파 빌드 브리프: 텍스트 우선, 음성·결제·070·카카오톡은 M2.
+> 알파 빌드: 텍스트 우선, 음성·결제·070·카카오톡은 M2.
 
 ## 현재 단계: M1 텍스트 알파
 
 | # | 체크포인트 | 상태 |
 |---|---|---|
 | 1 | Next.js + 페르소나 + 로컬 채팅 | ✅ |
-| 2 | Auth (Supabase 코드 dormant — auth는 알파 후로 연기) | ⏸️ |
-| 3 | 일기 생성 + 캘린더 (localStorage 영속화) | ✅ |
+| 2 | Supabase Auth + Postgres | ✅ |
+| 3 | 일기 생성 + 캘린더 + DB 영속화 | ✅ |
 | 4 | 안전 레이어 (위기 탐지 + 자원 + 슬랙) | ⏳ |
 | 5 | 온보딩·연령 게이트·설정·삭제권·피드백 | ⏳ |
 | 6 | Vercel 배포 + 사용 캡 + 모니터링 | ⏳ |
-| — | [보류] NextAuth + AWS RDS 연결 | ⏸️ |
 
-알파 동안은 **로그인 없음 + 브라우저 localStorage에 일기 저장** — 인프라·계정 0,
-한 기기 한 사용자, 데모는 URL만 던지면 됨. auth + DB는 알파 끝나고 NextAuth.js + AWS RDS로 한 번에 붙임.
-
-## 스택 (M1 알파)
+## 스택
 
 ```
 Next.js 15 (Vercel)
- ├─ UI:      app/page.tsx → app/chat-client.tsx (스트리밍·TTS·일기 모달)
- │           app/diaries/ (목록 + 상세 + 수정/삭제, mood trend)
- ├─ API:     app/api/chat/route.ts  — Claude Sonnet 4.6 스트리밍
- │           app/api/diary/route.ts — DIARY_PROMPT로 JSON 일기 생성
- ├─ 저장:    lib/local-store.ts — localStorage CRUD
- └─ 프롬프트: lib/prompts.ts (companion_master_spec § 3)
+ ├─ UI:    app/page.tsx (RSC) → app/chat-client.tsx
+ │         app/diaries/ (RSC: 목록·상세) + diary-actions.tsx (편집·삭제)
+ │         app/login/page.tsx (Google + Kakao + 매직 링크)
+ ├─ API:   /api/chat   — Claude Sonnet 4.6 스트리밍 + 메시지 영속화
+ │         /api/diary  — 세션 종료 + 일기 생성 + DB 저장 (멱등)
+ │         /api/diary/[id] — DELETE / PATCH
+ ├─ Auth:  Supabase (lib/supabase/{server,client,middleware}.ts)
+ │         middleware.ts: 보호 라우트 자동 리디렉트
+ └─ DB:    Supabase Postgres + RLS (supabase/schema.sql)
+           companions / sessions / messages / diaries / profiles / usage / feedback
+           기억 주입: 매 채팅마다 lastDiary + profile을 서버가 DB에서 로드
 ```
 
 ## 셋업
 
 ```bash
+# 1) Supabase 프로젝트 만들고 스키마 적용 — supabase/README.md 참고
+# 2) 환경변수 채우기
 cp .env.local.example .env.local
-# ANTHROPIC_API_KEY 채우기 (그것만 필요)
+#    ANTHROPIC_API_KEY
+#    NEXT_PUBLIC_SUPABASE_URL
+#    NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 npm install
 npm run dev
-# http://localhost:3000
+# http://localhost:3000 → /login → 가입 → 대화 → 마무리 → 일기
 ```
 
-## 기능 확인
+Supabase env 비어있으면 자동 데모 모드 (인증·영속화 없이 채팅만).
 
-1. 채팅으로 온이랑 대화 (2~4문장, 추임새, 질문 하나씩 — 페르소나 그대로)
-2. 2턴 이상 되면 화면 하단에 "오늘 마무리하기" 버튼
-3. 누르면 온이 일기 생성 → 모달로 보여줌 → localStorage 저장
-4. 다음 대화 시작하면 온이 어제 일기 followup 챙김 ("발표 어떻게 됐어?")
-5. 헤더 "📔 지난 일기" → 목록·mood trend·상세 보기·수정/삭제
+## 기능 확인 흐름
+
+1. 로그인 → 채팅 ("안녕, 왔네. 오늘 하루 어땠어?")
+2. 2턴 이상 되면 "오늘 마무리하기" 버튼 → 일기 생성 → 모달
+3. "📔 지난 일기" → 목록 + mood trend + 상세 보기
+4. 상세에서 본문 수정 / 일기 삭제
+5. 다음 대화 시작하면 온이 어제 일기 followup 자동 챙김 ("발표 어떻게 됐어?")
 
 ## 디렉토리
 
 ```
 agita/
 ├── app/
-│   ├── page.tsx / chat-client.tsx   # 채팅
-│   ├── diaries/                      # 일기 목록·상세
-│   ├── api/chat/route.ts             # Claude 스트리밍
-│   └── api/diary/route.ts            # 일기 생성
+│   ├── page.tsx / chat-client.tsx
+│   ├── diaries/ (page · [id]/page · diary-card · mood-trend · diary-actions)
+│   ├── login/page.tsx
+│   ├── auth/callback/route.ts
+│   └── api/ (chat · diary · diary/[id])
 ├── lib/
-│   ├── prompts.ts                    # 페르소나 프롬프트 팩
-│   ├── local-store.ts                # localStorage 어댑터
-│   ├── supabase/  + db.ts            # 🔒 dormant (auth 단계에서 부활)
-├── supabase/schema.sql               # 🔒 dormant (RDS에 그대로 적용 가능)
-├── middleware.ts                     # no-op (auth 없음)
-└── m2_voice/                         # 🔒 음성 프로토타입 (M2 자산)
+│   ├── prompts.ts      # 페르소나 프롬프트 팩 + buildSystemPrompt + safeParseDiaryJson
+│   ├── db.ts           # Supabase CRUD 헬퍼
+│   └── supabase/       # 클라이언트 3종 (server/client/middleware) + env 가드
+├── middleware.ts       # 인증 미들웨어
+├── supabase/
+│   ├── schema.sql      # 스키마 + RLS + 신규 사용자 트리거
+│   └── README.md       # 셋업 가이드
+└── m2_voice/           # 🔒 음성 프로토타입 (M2 자산)
 ```
 
 ## M2 (보류)
@@ -77,4 +87,4 @@ agita/
 - 결제/요금제 (토스페이먼츠/포트원)
 - 실제 070 1인 1번호
 - 카카오톡 채널 챗봇
-- 먼저 전화 걸기 / 가끔 거절 (행동 레이어)
+- 먼저 전화 걸기 / 가끔 거절

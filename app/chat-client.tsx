@@ -3,12 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import {
-  getLastLocalDiary,
-  saveLocalDiary,
-  type StoredDiary,
-} from "@/lib/local-store";
-import type { LastDiary } from "@/lib/prompts";
+import { getBrowserSupabase } from "@/lib/supabase/client";
+import type { DiaryRow } from "@/lib/db";
 import { DiaryCard } from "./diaries/diary-card";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -16,23 +12,19 @@ type Message = { role: "user" | "assistant"; content: string };
 type Props = {
   aiName: string;
   intensity: string;
+  email: string | null;
 };
 
-export default function ChatClient({ aiName, intensity }: Props) {
+export default function ChatClient({ aiName, intensity, email }: Props) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [speakMode, setSpeakMode] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [wrapping, setWrapping] = useState(false);
-  const [diary, setDiary] = useState<StoredDiary | null>(null);
+  const [diary, setDiary] = useState<DiaryRow | null>(null);
   const [wrapErr, setWrapErr] = useState<string>("");
-  const lastDiaryRef = useRef<LastDiary | null>(null);
-
-  // 마운트 시 localStorage에서 직전 일기 로드 → 시스템 프롬프트에 주입할 메모리.
-  useEffect(() => {
-    lastDiaryRef.current = getLastLocalDiary();
-  }, []);
   const messagesRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -155,7 +147,7 @@ export default function ChatClient({ aiName, intensity }: Props) {
           messages: next,
           intensity,
           aiName,
-          lastDiary: lastDiaryRef.current,
+          sessionId,
         }),
       });
 
@@ -167,6 +159,10 @@ export default function ChatClient({ aiName, intensity }: Props) {
         doneRef.current = true;
         return;
       }
+
+      // 서버가 새 세션을 만들면 헤더로 돌려줌
+      const newSessionId = res.headers.get("x-session-id");
+      if (newSessionId && newSessionId !== sessionId) setSessionId(newSessionId);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -190,25 +186,30 @@ export default function ChatClient({ aiName, intensity }: Props) {
     }
   }
 
+  async function signOut() {
+    const supabase = getBrowserSupabase();
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
   async function wrapUp() {
-    if (wrapping || busy) return;
-    if (messages.length < 2) return; // 너무 짧으면 무시
+    if (!sessionId || wrapping || busy) return;
+    if (messages.length < 2) return;
     setWrapping(true);
     setWrapErr("");
     try {
       const res = await fetch("/api/diary", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ sessionId }),
       });
       const json = await res.json();
       if (!res.ok) {
         setWrapErr(json.error || "일기 생성에 실패했어요.");
         return;
       }
-      const stored = saveLocalDiary(json.diary as LastDiary);
-      lastDiaryRef.current = stored.payload;
-      setDiary(stored);
+      setDiary(json.diary as DiaryRow);
     } catch {
       setWrapErr("연결 문제로 일기를 못 만들었어요.");
     } finally {
@@ -219,6 +220,7 @@ export default function ChatClient({ aiName, intensity }: Props) {
   function closeDiaryModal(goList: boolean) {
     setDiary(null);
     setMessages([]);
+    setSessionId(null);
     if (goList) router.push("/diaries");
   }
 
@@ -241,6 +243,11 @@ export default function ChatClient({ aiName, intensity }: Props) {
           >
             {speakMode ? "🔊 켜짐" : "🔇 말하기"}
           </button>
+          {email && (
+            <button className="signout" onClick={signOut} title={email}>
+              로그아웃
+            </button>
+          )}
         </div>
       </header>
 

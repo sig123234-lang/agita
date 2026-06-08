@@ -1,49 +1,46 @@
-"use client";
-
 import Link from "next/link";
-import { notFound, useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import {
-  deleteLocalDiary,
-  getLocalDiary,
-  updateLocalDiaryText,
-  type StoredDiary,
-} from "@/lib/local-store";
+import { notFound } from "next/navigation";
+import { getServerSupabase } from "@/lib/supabase/server";
+import { getDiary } from "@/lib/db";
 import { DiaryCard } from "../diary-card";
+import { DiaryActions } from "./diary-actions";
 
-export default function DiaryDetailPage() {
-  const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const id = params?.id ?? "";
+export const dynamic = "force-dynamic";
 
-  const [diary, setDiary] = useState<StoredDiary | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [mode, setMode] = useState<"idle" | "editing">("idle");
-  const [text, setText] = useState("");
+type Props = { params: Promise<{ id: string }> };
 
-  useEffect(() => {
-    const d = getLocalDiary(id);
-    setDiary(d);
-    setText(d?.payload.diary ?? "");
-    setLoaded(true);
-  }, [id]);
+export default async function DiaryDetailPage({ params }: Props) {
+  const { id } = await params;
+  const diaryId = Number(id);
+  if (!Number.isFinite(diaryId)) notFound();
 
-  if (loaded && !diary) notFound();
-  if (!diary) return null;
-
-  function save() {
-    const updated = updateLocalDiaryText(id, text);
-    if (updated) {
-      setDiary(updated);
-      setMode("idle");
-    }
+  const supabase = await getServerSupabase();
+  if (!supabase) {
+    return (
+      <div className="diaries-shell">
+        <div className="login-card">
+          <h1>설정 안 됨</h1>
+        </div>
+      </div>
+    );
   }
 
-  function remove() {
-    if (!confirm("이 일기를 삭제할까요? 되돌릴 수 없어요.")) return;
-    deleteLocalDiary(id);
-    router.push("/diaries");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return (
+      <div className="diaries-shell">
+        <div className="login-card">
+          <h1>로그인 필요</h1>
+          <p className="dim"><Link href="/login">/login</Link></p>
+        </div>
+      </div>
+    );
   }
+
+  const diary = await getDiary(supabase, diaryId);
+  if (!diary || diary.user_id !== user.id) notFound();
 
   return (
     <div className="diaries-shell">
@@ -57,26 +54,10 @@ export default function DiaryDetailPage() {
 
       <DiaryCard diary={diary} showLink={false} />
 
-      {mode === "editing" ? (
-        <div className="diary-edit">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-          />
-          <div className="diary-edit-actions">
-            <button onClick={() => { setText(diary.payload.diary ?? ""); setMode("idle"); }} className="btn-ghost">
-              취소
-            </button>
-            <button onClick={save} className="btn-primary">저장</button>
-          </div>
-        </div>
-      ) : (
-        <div className="diary-actions">
-          <button onClick={() => setMode("editing")} className="btn-ghost">본문 수정</button>
-          <button onClick={remove} className="btn-danger">삭제</button>
-        </div>
-      )}
+      <DiaryActions
+        diaryId={diary.id}
+        initialDiaryText={diary.payload.diary ?? ""}
+      />
     </div>
   );
 }

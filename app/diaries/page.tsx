@@ -1,19 +1,38 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { listLocalDiaries, type StoredDiary } from "@/lib/local-store";
+import { getServerSupabase } from "@/lib/supabase/server";
+import { listDiaries } from "@/lib/db";
 import { DiaryCard } from "./diary-card";
 import { MoodTrend } from "./mood-trend";
 
-export default function DiariesPage() {
-  const [diaries, setDiaries] = useState<StoredDiary[]>([]);
-  const [loaded, setLoaded] = useState(false);
+export const dynamic = "force-dynamic";
 
-  useEffect(() => {
-    setDiaries(listLocalDiaries());
-    setLoaded(true);
-  }, []);
+export default async function DiariesPage() {
+  const supabase = await getServerSupabase();
+  if (!supabase) {
+    return (
+      <div className="diaries-shell">
+        <div className="login-card">
+          <h1>설정 안 됨</h1>
+          <p className="dim">Supabase 환경변수가 없어요.</p>
+        </div>
+      </div>
+    );
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return (
+      <div className="diaries-shell">
+        <div className="login-card">
+          <h1>로그인 필요</h1>
+          <p className="dim"><Link href="/login">/login</Link>으로 이동.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const diaries = await listDiaries(supabase, user.id, 90);
 
   return (
     <div className="diaries-shell">
@@ -25,7 +44,7 @@ export default function DiariesPage() {
         <Link href="/" className="back-btn">← 돌아가기</Link>
       </header>
 
-      {!loaded ? null : diaries.length === 0 ? (
+      {diaries.length === 0 ? (
         <div className="empty-state">
           <p>아직 일기가 없어요.</p>
           <p className="dim">대화 후 "마무리"를 누르면 온이 일기를 남겨줘요.</p>
