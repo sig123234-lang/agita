@@ -79,7 +79,7 @@ function LoginInner() {
   return (
     <div className="login-shell">
       <div className="login-card">
-        <h1>온</h1>
+        <h1>agita</h1>
         <p className="dim">매일 밤, 하루를 털어놓는 친구.</p>
 
         <button className="btn-oauth google" onClick={signInGoogle} disabled={status === "sending"}>
@@ -112,7 +112,7 @@ function LoginInner() {
         {status === "err" && <p className="err">{errMsg}</p>}
 
         <p className="footnote-login">
-          온은 AI예요. 전문 상담을 대체하지 않아요.
+          agita는 AI예요. 전문 상담을 대체하지 않아요.
         </p>
       </div>
     </div>

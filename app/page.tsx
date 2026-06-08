@@ -9,7 +9,7 @@ export default async function Home() {
 
   // env 없으면: 데모 모드 (개발 편의). 미들웨어가 보호 라우트 통과시킴.
   if (!supabase) {
-    return <ChatClient aiName="온" intensity="다정" email={null} />;
+    return <ChatClient aiName="agita" intensity="다정" email={null} />;
   }
 
   const {
@@ -32,7 +32,7 @@ export default async function Home() {
 
   return (
     <ChatClient
-      aiName={companion?.name ?? "온"}
+      aiName={companion?.name ?? "agita"}
       intensity={companion?.intensity ?? "다정"}
       email={user.email ?? null}
     />

@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   const supabase = await getServerSupabase();
   let userId: string | null = null;
   let sessionId: string | null = body.sessionId ?? null;
-  let companionName = body.aiName ?? "온";
+  let companionName = body.aiName ?? "agita";
   let companionIntensity: string = body.intensity ?? "다정";
   let lastDiary: LastDiary | null = null;
   let userProfile: UserProfile | null = null;

@@ -81,7 +81,7 @@ export async function POST(req: Request) {
     });
   }
   const transcript = messages
-    .map((m) => `${m.role === "user" ? "사용자" : "온"}: ${m.content}`)
+    .map((m) => `${m.role === "user" ? "사용자" : "agita"}: ${m.content}`)
     .join("\n");
 
   const anthropic = new Anthropic({ apiKey });

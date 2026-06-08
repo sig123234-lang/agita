@@ -47,7 +47,7 @@ export default async function DiaryDetailPage({ params }: Props) {
       <header className="diaries-header">
         <div>
           <h1>{diary.date}</h1>
-          <p className="dim">온이 남긴 일기.</p>
+          <p className="dim">agita가 남긴 일기.</p>
         </div>
         <Link href="/diaries" className="back-btn">← 목록</Link>
       </header>

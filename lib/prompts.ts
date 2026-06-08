@@ -1,4 +1,4 @@
-// 온 페르소나 프롬프트 팩
+// agita 페르소나 프롬프트 팩
 // companion_master_spec.md § 3 기준. m2_voice/companion_call_bot.py와 1:1 동기.
 //
 // ⚠️ M1 텍스트 알파에선 음성 관련 문구("이건 통화다", "TTS로 읽힘", [감정신호]) 등
@@ -160,7 +160,7 @@ export type BuildSystemPromptInput = {
 // ─── 시스템 프롬프트 합성 ────────────────────────────────────────────────
 
 export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
-  const name = input.name ?? "온";
+  const name = input.name ?? "agita";
 
   const last = input.lastDiary;
   const lastDiarySummary = last

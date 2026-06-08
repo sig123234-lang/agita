@@ -39,7 +39,7 @@ export default async function DiariesPage() {
       <header className="diaries-header">
         <div>
           <h1>지난 날들</h1>
-          <p className="dim">온과 나눈 이야기들의 기록.</p>
+          <p className="dim">agita와 나눈 이야기들의 기록.</p>
         </div>
         <Link href="/" className="back-btn">← 돌아가기</Link>
       </header>
@@ -47,7 +47,7 @@ export default async function DiariesPage() {
       {diaries.length === 0 ? (
         <div className="empty-state">
           <p>아직 일기가 없어요.</p>
-          <p className="dim">대화 후 "마무리"를 누르면 온이 일기를 남겨줘요.</p>
+          <p className="dim">대화 후 "마무리"를 누르면 agita가 일기를 남겨줘요.</p>
         </div>
       ) : (
         <>

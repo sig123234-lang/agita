@@ -238,7 +238,7 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
           <button
             className={`tts-toggle${speakMode ? " on" : ""}`}
             onClick={toggleSpeakMode}
-            title="말하기 모드 — 온의 답을 음성으로 읽어줘요"
+            title="말하기 모드 — agita의 답을 음성으로 읽어줘요"
             aria-pressed={speakMode}
           >
             {speakMode ? "🔊 켜짐" : "🔇 말하기"}
@@ -315,14 +315,14 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
             disabled={wrapping || busy}
             title="대화를 마무리하고 오늘 일기를 받기"
           >
-            {wrapping ? "온이 일기 쓰는 중…" : "오늘 마무리하기"}
+            {wrapping ? "agita가 일기 쓰는 중…" : "오늘 마무리하기"}
           </button>
           {wrapErr && <span className="wrap-err">{wrapErr}</span>}
         </div>
       )}
 
       <div className="footnote">
-        온은 AI예요. 전문 상담을 대체하지 않아요. 많이 힘들 땐 자살예방상담 109.
+        agita는 AI예요. 전문 상담을 대체하지 않아요. 많이 힘들 땐 자살예방상담 109.
       </div>
 
       {diary && (

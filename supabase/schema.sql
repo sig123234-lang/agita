@@ -1,10 +1,10 @@
--- 온 (ON) — M1 Postgres 스키마 + RLS
+-- agita — M1 Postgres 스키마 + RLS
 -- Supabase SQL Editor에 통째로 붙여넣어 1회 실행. 멱등하게 작성.
 
 -- ─── companions ────────────────────────────────────────────────────────
 create table if not exists public.companions (
   user_id     uuid primary key references auth.users(id) on delete cascade,
-  name        text not null default '온',
+  name        text not null default 'agita',
   voice_id    text,
   intensity   text not null default '다정' check (intensity in ('담백', '다정', '설렘')),
   updated_at  timestamptz not null default now()
