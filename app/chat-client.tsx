@@ -1,22 +1,38 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { getBrowserSupabase } from "@/lib/supabase/client";
+import {
+  getLastLocalDiary,
+  saveLocalDiary,
+  type StoredDiary,
+} from "@/lib/local-store";
+import type { LastDiary } from "@/lib/prompts";
+import { DiaryCard } from "./diaries/diary-card";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 type Props = {
   aiName: string;
   intensity: string;
-  email: string | null;
 };
 
-export default function ChatClient({ aiName, intensity, email }: Props) {
+export default function ChatClient({ aiName, intensity }: Props) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [speakMode, setSpeakMode] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [wrapping, setWrapping] = useState(false);
+  const [diary, setDiary] = useState<StoredDiary | null>(null);
+  const [wrapErr, setWrapErr] = useState<string>("");
+  const lastDiaryRef = useRef<LastDiary | null>(null);
+
+  // 마운트 시 localStorage에서 직전 일기 로드 → 시스템 프롬프트에 주입할 메모리.
+  useEffect(() => {
+    lastDiaryRef.current = getLastLocalDiary();
+  }, []);
   const messagesRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -139,7 +155,7 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
           messages: next,
           intensity,
           aiName,
-          sessionId,
+          lastDiary: lastDiaryRef.current,
         }),
       });
 
@@ -151,10 +167,6 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
         doneRef.current = true;
         return;
       }
-
-      // 서버가 새 세션을 만들면 헤더로 돌려줌
-      const newSessionId = res.headers.get("x-session-id");
-      if (newSessionId && newSessionId !== sessionId) setSessionId(newSessionId);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -178,11 +190,36 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
     }
   }
 
-  async function signOut() {
-    const supabase = getBrowserSupabase();
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+  async function wrapUp() {
+    if (wrapping || busy) return;
+    if (messages.length < 2) return; // 너무 짧으면 무시
+    setWrapping(true);
+    setWrapErr("");
+    try {
+      const res = await fetch("/api/diary", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setWrapErr(json.error || "일기 생성에 실패했어요.");
+        return;
+      }
+      const stored = saveLocalDiary(json.diary as LastDiary);
+      lastDiaryRef.current = stored.payload;
+      setDiary(stored);
+    } catch {
+      setWrapErr("연결 문제로 일기를 못 만들었어요.");
+    } finally {
+      setWrapping(false);
+    }
+  }
+
+  function closeDiaryModal(goList: boolean) {
+    setDiary(null);
+    setMessages([]);
+    if (goList) router.push("/diaries");
   }
 
   return (
@@ -193,6 +230,9 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
           <p>오늘 하루, 나한테 들려줘.</p>
         </div>
         <div className="header-actions">
+          <Link href="/diaries" className="signout" title="지난 일기 보기">
+            📔 지난 일기
+          </Link>
           <button
             className={`tts-toggle${speakMode ? " on" : ""}`}
             onClick={toggleSpeakMode}
@@ -201,11 +241,6 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
           >
             {speakMode ? "🔊 켜짐" : "🔇 말하기"}
           </button>
-          {email && (
-            <button className="signout" onClick={signOut} title={email}>
-              로그아웃
-            </button>
-          )}
         </div>
       </header>
 
@@ -265,9 +300,47 @@ export default function ChatClient({ aiName, intensity, email }: Props) {
         </button>
       </div>
 
+      {messages.length >= 2 && !diary && (
+        <div className="wrap-row">
+          <button
+            className="wrap-btn"
+            onClick={wrapUp}
+            disabled={wrapping || busy}
+            title="대화를 마무리하고 오늘 일기를 받기"
+          >
+            {wrapping ? "온이 일기 쓰는 중…" : "오늘 마무리하기"}
+          </button>
+          {wrapErr && <span className="wrap-err">{wrapErr}</span>}
+        </div>
+      )}
+
       <div className="footnote">
         온은 AI예요. 전문 상담을 대체하지 않아요. 많이 힘들 땐 자살예방상담 109.
       </div>
+
+      {diary && (
+        <div className="modal-backdrop" onClick={() => closeDiaryModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <strong>오늘의 일기</strong>
+              <button className="modal-close" onClick={() => closeDiaryModal(false)} aria-label="닫기">
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <DiaryCard diary={diary} showLink={false} />
+            </div>
+            <div className="modal-foot">
+              <button className="btn-ghost" onClick={() => closeDiaryModal(false)}>
+                나중에 다시
+              </button>
+              <button className="btn-primary" onClick={() => closeDiaryModal(true)}>
+                전체 일기 보러가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

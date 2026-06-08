@@ -207,3 +207,36 @@ export function pickNextTopic(
   const candidates = (lastDiary.followups ?? []).filter((f) => !sensitive.has(f));
   return candidates[0] ?? null;
 }
+
+// ─── Claude 응답에서 JSON 안전 추출 ──────────────────────────────────────
+
+export function safeParseDiaryJson(raw: string): LastDiary {
+  // 백틱 펜스/언어태그/앞뒤 텍스트가 섞여도 JSON 영역만 뽑아내는 가벼운 파서.
+  const trimmed = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/, "")
+    .trim();
+
+  try {
+    return JSON.parse(trimmed) as LastDiary;
+  } catch {
+    // 본문 중간에 JSON만 끼어있는 경우 — 첫 { 와 마지막 } 사이만 시도
+    const first = trimmed.indexOf("{");
+    const last = trimmed.lastIndexOf("}");
+    if (first >= 0 && last > first) {
+      try {
+        return JSON.parse(trimmed.slice(first, last + 1)) as LastDiary;
+      } catch {
+        // 폴백
+      }
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      date: today,
+      diary: raw,
+      followups: [],
+      safety_flag: false,
+    };
+  }
+}

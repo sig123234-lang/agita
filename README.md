@@ -11,68 +11,63 @@
 | # | 체크포인트 | 상태 |
 |---|---|---|
 | 1 | Next.js + 페르소나 + 로컬 채팅 | ✅ |
-| 2 | Supabase Auth + Postgres | ✅ |
-| 3 | 일기 생성 + 캘린더 뷰 | ⏳ |
+| 2 | Auth (Supabase 코드 dormant — auth는 알파 후로 연기) | ⏸️ |
+| 3 | 일기 생성 + 캘린더 (localStorage 영속화) | ✅ |
 | 4 | 안전 레이어 (위기 탐지 + 자원 + 슬랙) | ⏳ |
 | 5 | 온보딩·연령 게이트·설정·삭제권·피드백 | ⏳ |
 | 6 | Vercel 배포 + 사용 캡 + 모니터링 | ⏳ |
+| — | [보류] NextAuth + AWS RDS 연결 | ⏸️ |
 
-## 스택 (M1)
+알파 동안은 **로그인 없음 + 브라우저 localStorage에 일기 저장** — 인프라·계정 0,
+한 기기 한 사용자, 데모는 URL만 던지면 됨. auth + DB는 알파 끝나고 NextAuth.js + AWS RDS로 한 번에 붙임.
+
+## 스택 (M1 알파)
 
 ```
 Next.js 15 (Vercel)
- ├─ UI:    app/page.tsx (RSC) → app/chat-client.tsx (interactive)
- │         app/login/page.tsx (Google/Kakao OAuth + 매직 링크)
- ├─ API:   app/api/chat/route.ts (Claude Sonnet 4.6 스트리밍 + 영속화)
- ├─ Auth:  Supabase (lib/supabase/{server,client,middleware}.ts)
- │         middleware.ts: 보호 라우트 자동 리디렉트
- ├─ DB:    Supabase Postgres (companions, sessions, messages, diaries, profiles, ...)
- │         RLS로 사용자 데이터 격리 (supabase/schema.sql)
+ ├─ UI:      app/page.tsx → app/chat-client.tsx (스트리밍·TTS·일기 모달)
+ │           app/diaries/ (목록 + 상세 + 수정/삭제, mood trend)
+ ├─ API:     app/api/chat/route.ts  — Claude Sonnet 4.6 스트리밍
+ │           app/api/diary/route.ts — DIARY_PROMPT로 JSON 일기 생성
+ ├─ 저장:    lib/local-store.ts — localStorage CRUD
  └─ 프롬프트: lib/prompts.ts (companion_master_spec § 3)
 ```
 
 ## 셋업
 
 ```bash
-# 1) Supabase 프로젝트 만들고 스키마 적용 (supabase/README.md 참고)
-# 2) 환경변수 채우기
 cp .env.local.example .env.local
-#    ANTHROPIC_API_KEY
-#    NEXT_PUBLIC_SUPABASE_URL
-#    NEXT_PUBLIC_SUPABASE_ANON_KEY
+# ANTHROPIC_API_KEY 채우기 (그것만 필요)
 
 npm install
 npm run dev
-# http://localhost:3000 → /login으로 자동 이동 → 가입 → 대화
+# http://localhost:3000
 ```
 
-Supabase env가 없으면 데모 모드로 동작 (인증/영속화 없이 채팅만). 알파 개발 편의.
+## 기능 확인
+
+1. 채팅으로 온이랑 대화 (2~4문장, 추임새, 질문 하나씩 — 페르소나 그대로)
+2. 2턴 이상 되면 화면 하단에 "오늘 마무리하기" 버튼
+3. 누르면 온이 일기 생성 → 모달로 보여줌 → localStorage 저장
+4. 다음 대화 시작하면 온이 어제 일기 followup 챙김 ("발표 어떻게 됐어?")
+5. 헤더 "📔 지난 일기" → 목록·mood trend·상세 보기·수정/삭제
 
 ## 디렉토리
 
 ```
 agita/
 ├── app/
-│   ├── page.tsx              # RSC: auth check → ChatClient
-│   ├── chat-client.tsx       # 인터랙티브 채팅 (스트리밍·TTS·세션관리)
-│   ├── layout.tsx
-│   ├── globals.css
-│   ├── login/page.tsx        # 로그인 (Google + Kakao + 매직 링크)
-│   ├── auth/callback/route.ts # OAuth/매직 링크 콜백
-│   └── api/chat/route.ts     # Claude 스트리밍 + 영속화
+│   ├── page.tsx / chat-client.tsx   # 채팅
+│   ├── diaries/                      # 일기 목록·상세
+│   ├── api/chat/route.ts             # Claude 스트리밍
+│   └── api/diary/route.ts            # 일기 생성
 ├── lib/
-│   ├── prompts.ts            # 페르소나 프롬프트 팩
-│   ├── db.ts                 # DB CRUD 헬퍼
-│   └── supabase/
-│       ├── env.ts
-│       ├── server.ts
-│       ├── client.ts
-│       └── middleware.ts
-├── middleware.ts             # 인증 미들웨어 (보호 라우트 → /login)
-├── supabase/
-│   ├── schema.sql            # 스키마 + RLS + 자동 트리거
-│   └── README.md             # 셋업 가이드
-└── m2_voice/                 # 🔒 M2 음성 프로토타입 (격리, 알파엔 미사용)
+│   ├── prompts.ts                    # 페르소나 프롬프트 팩
+│   ├── local-store.ts                # localStorage 어댑터
+│   ├── supabase/  + db.ts            # 🔒 dormant (auth 단계에서 부활)
+├── supabase/schema.sql               # 🔒 dormant (RDS에 그대로 적용 가능)
+├── middleware.ts                     # no-op (auth 없음)
+└── m2_voice/                         # 🔒 음성 프로토타입 (M2 자산)
 ```
 
 ## M2 (보류)

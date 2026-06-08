@@ -1,14 +1,10 @@
-import type { NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+// 현재는 인증 없음 — 모든 요청 통과.
+// CP-auth (NextAuth + RDS) 붙일 때 lib/supabase/middleware.ts 패턴 부활.
 
-// Supabase auth는 Edge 런타임 비호환 → Node로 강제 (Next.js 15+ 지원).
-export const config = {
-  runtime: "nodejs",
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
-};
-
-export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+export function middleware() {
+  // no-op
 }
+
+export const config = {
+  matcher: [],
+};
